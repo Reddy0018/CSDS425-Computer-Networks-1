@@ -59,8 +59,6 @@ def main():
                     data = connections[fileno].recv(BUF_SIZE)  # Receives and read data from client.
                     if data:
                         requests[fileno] += data
-                        # In a real application, you'd parse the HTTP request here and potentially
-                        # read more data if the request is incomplete.
                         try:
                             responses[fileno] = handleHttpRequest(requests[fileno].decode(), wwwFolder).encode()  # prepares HTTP response
                         except:
@@ -74,8 +72,7 @@ def main():
                     bytes_written = connections[fileno].send(responses[fileno])  # Sends response data to the client.
                     if len(responses[fileno]) == bytes_written:
                         epoll.modify(fileno, select.EPOLLIN)  # Modify to listen for new requests after responding.
-                        # Close connection for pipelining optimization
-                        if b'\r\n\r\n' in requests[fileno]:
+                        if b'\r\n\r\n' in requests[fileno]: # Close connection for pipelining optimization
                             epoll.unregister(fileno)
                             connections[fileno].close()
                             del connections[fileno], requests[fileno], responses[fileno]
