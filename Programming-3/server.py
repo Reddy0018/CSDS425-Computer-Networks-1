@@ -18,6 +18,7 @@ EOL1 = b'\n\n'
 EOL2 = b'\r\n\r\n'
 
 def generate_response(statusCode, filePath, msgs, msgBody=None):
+    print("filepath: "+ str(filePath))
     if statusCode == '200':
         prepopulatedHeaders = HttpHeader.OK
     if statusCode == '404':
@@ -153,7 +154,6 @@ def main():
                         elif EOL1 in requests[fileNo] or EOL2 in requests[fileNo]:
                             #TODO: parse request and generate response
                             rawMsg = requests[fileNo].decode()
-                            #m = re.match(r'(POST|GET|HEAD).*?('+EOL1.decode()+'|'+EOL2.decode()+')', rawMsg, re.MULTILINE|re.DOTALL)
                             indices = [m.end() for m in re.finditer(r'(POST|GET|HEAD).*?('+EOL1.decode()+'|'+EOL2.decode()+')', rawMsg, re.MULTILINE|re.DOTALL)]
                             start = 0
                             for index in indices:
