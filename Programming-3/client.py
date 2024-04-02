@@ -44,7 +44,7 @@ def main():
     clientSock.setblocking(0)
 
     uri = "/test_dependency"
-    dependencyPath = os.getcwd() + "www" + uri
+    dependencyPath = os.getcwd() + "/www" + uri
 
     method = "GET"
     dependencies = read_csv_data(dependencyPath+"/dependency.csv")
@@ -52,6 +52,7 @@ def main():
         request = method+" " + uri+ "/"+dep + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
         print("req: "+request)
         sendReq(request,clientSock)
+    clientSock.close()
 
     #request = method+" " + uri + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
     #clientSock.send(request.encode())
@@ -103,8 +104,6 @@ def sendReq(request,clientSock):
     
     with open(args.output, 'wb') as f:
         f.write(content_data)
-    
-    clientSock.close()
 
 def split_header_content(data):
     header_end = data.find(b'\r\n\r\n') + 4  # Find the end of header (including \r\n\r\n)
