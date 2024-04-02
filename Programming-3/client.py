@@ -51,16 +51,12 @@ def main():
     for dep in dependencies:
         request = method+" " + uri+ "/"+dep + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
         print("req: "+request)
-        sendReq(request,clientSock)
+        sendReq(request,clientSock,dep)
+
     clientSock.close()
 
-    #request = method+" " + uri + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
-    #clientSock.send(request.encode())
-    
 
-    #TODO: send HTTP requests
-
-def sendReq(request,clientSock):
+def sendReq(request,clientSock,dep):
     clientSock.send(request.encode())
     recvData = b''  # Initialize empty bytes object to store received data
     total_received = 0
@@ -99,10 +95,10 @@ def sendReq(request,clientSock):
     
     header_data, content_data = split_header_content(recvData)
     
-    with open(args.output + ".head", 'wb') as f:
+    with open(dep + ".head", 'wb') as f:
         f.write(header_data)
     
-    with open(args.output, 'wb') as f:
+    with open(dep, 'wb') as f:
         f.write(content_data)
 
 def split_header_content(data):
