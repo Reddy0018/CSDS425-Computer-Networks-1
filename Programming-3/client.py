@@ -5,7 +5,6 @@ import argparse
 import ipaddress
 import select
 from util import TestErrorCode
-#TODO import necessary library
 
 
 HTTP_PORT = 20080
@@ -44,7 +43,7 @@ def main():
         return TestErrorCode.TEST_ERROR_HTTP_CONNECT_FAILED
     #clientSock.setblocking(0)
 
-    uri = "/test_dependency"
+    uri = "/test_dependency" #HardCoding the path As I am unclear with the requirment!
     dependencyPath = os.getcwd() + "/www" + uri
 
     method = "GET"
@@ -57,7 +56,6 @@ import select  # Import the select module
 
 def sendReq(clientSock, dependencies, method, uri):
     for dep in dependencies:
-        #request = f"{method} {uri}/{dep} HTTP/1.1\r\nHost: {args.server_ip}\r\nConnection: close\r\n\r\n"
         request = method+" " + uri+ "/"+dep + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
         print("req: "+request)
         

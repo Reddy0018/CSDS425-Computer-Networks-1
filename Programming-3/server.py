@@ -1,7 +1,6 @@
 import os
 import sys
 import argparse
-# TODO: Import necessary library
 import socket, select
 sys.path.append('./backend/')
 from parse_http import parse_http_request, serialize_http_response
@@ -71,11 +70,10 @@ def main():
         print("Unable to open www folder ", wwwFolder)
         sys.exit(os.EX_OSFILE)
     
-    #TODO: Setup sockets and read buffer
     serverSock = socket.socket()
     serverSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     serverSock.bind(('0.0.0.0', HTTP_PORT))
-    serverSock.listen(20)
+    serverSock.listen(CONCURRENCY_LIMIT)
     
     read_only = select.EPOLLIN | select.EPOLLPRI | select.EPOLLHUP | select.EPOLLERR
     read_write = read_only | select.EPOLLOUT
@@ -108,7 +106,6 @@ def main():
                 if fileNo == serverSock.fileno():
                     connection, addr = serverSock.accept()
                     if totalConns == CONCURRENCY_LIMIT:
-                        #TODO: handle overload, send 503 response
                         overloadedConns[connection.fileno()] = connection
                         epoll.register(connection.fileno(), read_only)
                     else:
@@ -124,7 +121,6 @@ def main():
                         totalConns += 1
                 elif (event & select.EPOLLIN) or (event & select.EPOLLPRI):
                     try:
-                        # handle 503
                         if fileNo in overloadedConns:
                             recvdata = overloadedConns[fileNo].recv(BUF_SIZE)
                             overloadedConns[fileNo].send(unavailable_resp)
@@ -132,12 +128,12 @@ def main():
                             del overloadedConns[fileNo]
                             continue
                         revdata = connections[fileNo].recv(BUF_SIZE)
-                        print(revdata)
+                        #print(revdata)
                         if not revdata:
-                            connections[fileNo].close()
-                            epoll.unregister(fileNo)
-                            totalConns -= 1
-                            del connections[fileNo], requests[fileNo], responses[fileNo], alive[fileNo]
+                            # connections[fileNo].close()
+                            # epoll.unregister(fileNo)
+                            # totalConns -= 1
+                            # del connections[fileNo], requests[fileNo], responses[fileNo], alive[fileNo]
                             continue
                         requests[fileNo] += revdata
                         if len(postReqMsgs[fileNo]) != 0:
@@ -152,7 +148,6 @@ def main():
                                 postRespMsgs[fileNo] = b''
 
                         elif EOL1 in requests[fileNo] or EOL2 in requests[fileNo]:
-                            #TODO: parse request and generate response
                             rawMsg = requests[fileNo].decode()
                             indices = [m.end() for m in re.finditer(r'(POST|GET|HEAD).*?('+EOL1.decode()+'|'+EOL2.decode()+')', rawMsg, re.MULTILINE|re.DOTALL)]
                             start = 0
@@ -164,7 +159,6 @@ def main():
                                 msgs = []
                                 statusCode = '400'
                                 if request.Valid:
-                                    #TODO: handle Http Method
                                     if request.HttpMethod == 'POST':
                                         contentLength = int(request.headers['Content-Length'])
                                         if  contentLength > len(rawMsg) - end:
