@@ -49,56 +49,43 @@ def main():
 
     method = "GET"
     dependencies = read_csv_data(dependencyPath+"/dependency.csv")
-    for dep in dependencies:
-        request = method+" " + uri+ "/"+dep + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
-        print("req: "+request)
-        sendReq(request,clientSock,dep)
-
+    sendReq(clientSock,dependencies,method,uri)
     clientSock.close()
 
 
 import select  # Import the select module
 
-def sendReq(request, clientSock, dep):
-    clientSock.send(request.encode())
-    recvData = b''  # Initialize empty bytes object to store received data
-    total_received = 0
-    delimiter_found = False
-
-    while True:
-        # Use select to wait for the socket to be ready to read
-        readable, _, _ = select.select([clientSock], [], [], 5.0)  # 5.0 seconds timeout
-        if not readable:  # If the socket is not ready to read after the timeout
-            print("Timeout or no data available to read.")
-            break
-
-        for sock in readable:
-            chunk = sock.recv(BUF_SIZE)
-            if not chunk:
+def sendReq(clientSock, dependencies, method, uri):
+    for dep in dependencies:
+        #request = f"{method} {uri}/{dep} HTTP/1.1\r\nHost: {args.server_ip}\r\nConnection: close\r\n\r\n"
+        request = method+" " + uri+ "/"+dep + " HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
+        print("req: "+request)
+        
+        # Reconnect if necessary (for each dependency if the connection is not kept alive)
+        try:
+            clientSock.send(request.encode())
+        except BrokenPipeError:
+            clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientSock.connect((args.server_ip, HTTP_PORT))
+            clientSock.send(request.encode())
+        
+        recvData = b''
+        while True:
+            try:
+                chunk = clientSock.recv(BUF_SIZE)
+                if not chunk:
+                    break  # No more data, stop reading
+                recvData += chunk
+            except socket.error as e:
+                print(f"Socket error: {e}")
                 break
-            recvData += chunk
-            if not delimiter_found:
-                delimiter_index = recvData.find(b'\r\n\r\n')  # Find the position of the delimiter
-                if delimiter_index != -1:
-                    total_received = len(recvData) - (delimiter_index + 4)  # Update total received bytes counter
-                    delimiter_found = True
-            else:
-                total_received += len(chunk)
-
-            if b'Content-Length:' in recvData:
-                content_length = int(recvData.split(b'Content-Length: ')[1].split(b'\r\n')[0])
-                if total_received >= content_length:
-                    break  # Exit the loop once enough data has been received
-            if args.method == "HEAD" and b'\r\n\r\n' in recvData:
-                break
-    
-    header_data, content_data = split_header_content(recvData)
-    
-    with open(dep + ".head", 'wb') as f:
-        f.write(header_data)
-    
-    with open(dep, 'wb') as f:
-        f.write(content_data)
+        
+        if recvData:
+            header_data, content_data = split_header_content(recvData)
+            with open(dep + ".head", 'wb') as f:
+                f.write(header_data)
+            with open(dep, 'wb') as f:
+                f.write(content_data)
 
 
 def split_header_content(data):
