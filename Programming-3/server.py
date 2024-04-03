@@ -1,96 +1,59 @@
+# Importing necessary libraries
 import os
 import sys
 import argparse
 import socket, select
-sys.path.append('./backend/')
-from parse_http import parse_http_request, serialize_http_response
 import http_header as HttpHeader
 from http_header import Request
+sys.path.append('./backend/')
+from parse_http import parse_http_request, serialize_http_response
 import re
 from datetime import datetime
 
+# Define global constants
 BUF_SIZE = 1024
 HTTP_PORT = 20080
-#TODO:
 CONCURRENCY_LIMIT = 100
 EOL1 = b'\n\n'
 EOL2 = b'\r\n\r\n'
 
-def generate_response(statusCode, filePath, msgs, msgBody=None):
-    print("filepath: "+ str(filePath))
-    if statusCode == '200':
-        prepopulatedHeaders = HttpHeader.OK
-    if statusCode == '404':
-        prepopulatedHeaders = HttpHeader.NOT_FOUND
-    if statusCode == '400':
-        prepopulatedHeaders = HttpHeader.BAD_REQUEST
-    if statusCode == '503':
-        prepopulatedHeaders = HttpHeader.SERVICE_UNAVAILABLE
-
-    if not msgBody:
-        f = open(filePath, 'rb')
-        body = f.read()
-        f.close()
-        contentType = get_content_type(filePath.split('/')[-1])
-    else:
-        body = msgBody.encode()
-        contentType = HttpHeader.HTML_MIME
-    contentLength = str(len(body))
-    lastModified = get_current_time()
-    serialize_http_response(msgs, prepopulatedHeaders, contentType, contentLength, lastModified, body)
-
-def get_content_type(fileName):
-    ext = fileName.rsplit('.',1)[-1]
-    if ext == HttpHeader.HTML_EXT:
-        return HttpHeader.HTML_MIME
-    elif ext == HttpHeader.CSS_EXT:
-        return HttpHeader.CSS_MIME
-    elif ext == HttpHeader.PNG_EXT:
-        return HttpHeader.PNG_MIME
-    elif ext == HttpHeader.JPG_EXT:
-        return HttpHeader.JPG_MIME
-    elif ext == HttpHeader.GIF_EXT:
-        return HttpHeader.GIF_MIME
-    else:
-        return HttpHeader.OCTET_MIME
-
-def get_current_time():
-    currentDateAndTime = datetime.now()
-    currentTime = currentDateAndTime.strftime("%a, %d %b %Y %H:%M:%S GMT")
-    return currentTime
-
-
+# Main function
 def main():
+    # Parse command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(dest="www_folder",action='store', help='www folder')
     args = parser.parse_args()
-    
+
     wwwFolder = args.www_folder
     if not os.path.exists(wwwFolder):
         print("Unable to open www folder ", wwwFolder)
         sys.exit(os.EX_OSFILE)
-    
+
+    # Create a socket and bind it to the specified port
     serverSock = socket.socket()
     serverSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     serverSock.bind(('0.0.0.0', HTTP_PORT))
     serverSock.listen(CONCURRENCY_LIMIT)
-    
+
+    # Create an epoll object to handle multiple connections
     read_only = select.EPOLLIN | select.EPOLLPRI | select.EPOLLHUP | select.EPOLLERR
     read_write = read_only | select.EPOLLOUT
     biterrs = [25,24,8,16,9,17,26,10,18]
     epoll = select.epoll()
     epoll.register(serverSock.fileno(), read_only)
 
+    # Generate HTTP responses for various error conditions
     msgs = []
     generate_response('503', wwwFolder + '/503.html', msgs)
     unavailable_resp = msgs.pop()
 
     generate_response('400', wwwFolder + '/400.html', msgs)
     bad_request_resp = msgs.pop()
-    
+
     generate_response('404', wwwFolder + '/404.html', msgs)
     not_found_resp = msgs.pop()
 
+    # Handle incoming connections
     try:
         connections = {}
         totalConns = 0
@@ -121,6 +84,7 @@ def main():
                         totalConns += 1
                 elif (event & select.EPOLLIN) or (event & select.EPOLLPRI):
                     try:
+                        # Handle incoming data
                         if fileNo in overloadedConns:
                             recvdata = overloadedConns[fileNo].recv(BUF_SIZE)
                             overloadedConns[fileNo].send(unavailable_resp)
@@ -190,6 +154,7 @@ def main():
                                     responses[fileNo] += bad_request_resp
                                 start = end
 
+                            # Register the file descriptor for writing if the HTTP response is ready
                             epoll.modify(fileNo, read_write)
                     except ConnectionResetError:
                         epoll.unregister(fileNo)
@@ -199,6 +164,7 @@ def main():
     
                 elif event & select.EPOLLOUT:
                     try:
+                        # Send the HTTP response
                         byteswritten = connections[fileNo].send(responses[fileNo])
                         responses[fileNo] = responses[fileNo][byteswritten:]
                         if len(responses[fileNo]) == 0:
@@ -221,11 +187,64 @@ def main():
                     totalConns -= 1
 
     finally:
+        # Clean up
         epoll.unregister(serverSock.fileno())
         epoll.close()
         serverSock.close()
 
     sys.exit(os.EX_OK)
 
+# Function to generate an HTTP response
+def generate_response(statusCode, filePath, msgs, msgBody=None):
+    # Generate the appropriate HTTP headers based on the status code
+    if statusCode == '200':
+        prepopulatedHeaders = HttpHeader.OK
+    if statusCode == '404':
+        prepopulatedHeaders = HttpHeader.NOT_FOUND
+    if statusCode == '400':
+        prepopulatedHeaders = HttpHeader.BAD_REQUEST
+    if statusCode == '503':
+        prepopulatedHeaders = HttpHeader.SERVICE_UNAVAILABLE
+
+    # Read the file and set the Content-Type and Content-Length headers
+    if not msgBody:
+        f = open(filePath, 'rb')
+        body = f.read()
+        f.close()
+        contentType = get_content_type(filePath.split('/')[-1])
+    else:
+        body = msgBody.encode()
+        contentType = HttpHeader.HTML_MIME
+    contentLength = str(len(body))
+
+    # Set the Last-Modified header to the current time
+    lastModified = get_current_time()
+
+    # Serialize the HTTP response
+    serialize_http_response(msgs, prepopulatedHeaders, contentType, contentLength, lastModified, body)
+
+# Function to get the Content-Type of a file based on its extension
+def get_content_type(fileName):
+    ext = fileName.rsplit('.',1)[-1]
+    if ext == HttpHeader.HTML_EXT:
+        return HttpHeader.HTML_MIME
+    elif ext == HttpHeader.CSS_EXT:
+        return HttpHeader.CSS_MIME
+    elif ext == HttpHeader.PNG_EXT:
+        return HttpHeader.PNG_MIME
+    elif ext == HttpHeader.JPG_EXT:
+        return HttpHeader.JPG_MIME
+    elif ext == HttpHeader.GIF_EXT:
+        return HttpHeader.GIF_MIME
+    else:
+        return HttpHeader.OCTET_MIME
+
+# Function to get the current time
+def get_current_time():
+    currentDateAndTime = datetime.now()
+    currentTime = currentDateAndTime.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    return currentTime
+
+# Call the main function
 if __name__ == '__main__':
     main()
