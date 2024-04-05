@@ -2,7 +2,7 @@ from backend import parser as Parser
 from backend import response_parser as Rparser
 from enum import Enum
 from datetime import datetime
-from http_header import Request, SUCCESS, HTTP_SIZE, HTTP_VER, CRLF, CONNECTION, HOST, CONNECTION_VAL, SERVER, SERVER_VAL, DATE, CONTENT_TYPE, CONTENT_LENGTH, ZERO, LAST_MODIFIED
+from http_header import Request, Response, SUCCESS, HTTP_SIZE, HTTP_VER, CRLF, CONNECTION, HOST, CONNECTION_VAL, SERVER, SERVER_VAL, DATE, CONTENT_TYPE, CONTENT_LENGTH, ZERO, LAST_MODIFIED
 from util import TestErrorCode
 import copy
 
@@ -13,17 +13,52 @@ class State(Enum):
     STATE_CRLFCR = 3
     STATE_CRLFCRLF = 4
 
-def parse_http_request(inbuf, size, request):
-	'''
-    Parse an HTTP request form a buffer to a Request object.
 
-    :param inbuf: The input buffer
-    :type: string
-    :param size: The size of inbuf
-    :type: int
-    :param request: The output Request object
-    :type: Reqeust
-	'''
+def parse_http_response(inbuf, size, response):
+    i = 0
+    buf = ''
+    ret = [-1]
+    state = State.STATE_START
+
+    while (state != State.STATE_CRLFCRLF):
+        expected = None
+
+        if i == size:
+            break
+
+        ch = inbuf[i]
+        buf += ch 
+        i += 1
+
+        if (state == State.STATE_START or state == State.STATE_CRLF):
+            expected = '\r'
+
+        elif (state == State.STATE_CR or state == State.STATE_CRLFCR):
+            expected = '\n'
+    
+        else:
+            state = State.STATE_START
+            continue
+
+        if (ch == expected):
+            state = State(state.value + 1)
+
+        else:
+            state = State.STATE_START
+
+    if (state == State.STATE_CRLFCRLF):
+        Rparser.set_parsing_options(response, ret) 
+        Rparser.parser.parse(buf)
+        if (ret[0] == SUCCESS):
+            response.Valid = True
+            response.headers = copy.deepcopy(response.headers)
+            return TestErrorCode.TEST_ERROR_NONE
+        return TestErrorCode.TEST_ERROR_PARSE_FAILED
+
+    return TestErrorCode.TEST_ERROR_PARSE_PARTIAL 
+
+
+def parse_http_request(inbuf, size, request):
     i = 0
     buf = ''
     ret = [-1]
@@ -57,24 +92,17 @@ def parse_http_request(inbuf, size, request):
 
     if (state == State.STATE_CRLFCRLF):
         Parser.set_parsing_options(request, ret) 
+        #data = ''.join(str(x) for x in buf if x is not None)
         Parser.parser.parse(buf)
         if (ret[0] == SUCCESS):
             request.Valid = True
-            request.headers = copy.deepcopy(request.headers)
             return TestErrorCode.TEST_ERROR_NONE
         return TestErrorCode.TEST_ERROR_PARSE_FAILED
 
     return TestErrorCode.TEST_ERROR_PARSE_PARTIAL 
 
 def serialize_http_request(msgLst, request):
-    '''
-	Serialize an HTTP request from a Request to buffer
-
-    :param msgLst: The output message list
-    :type: list
-    :param request: The input Request object
-    :type: Reqeust
-	'''
+    '''Serialize an HTTP request from a Request to buffer'''
     msg = b''
     if (request.HttpMethod != "GET"):
         return TestErrorCode.TEST_ERROR_PARSE_FAILED
@@ -88,22 +116,7 @@ def serialize_http_request(msgLst, request):
     return TestErrorCode.TEST_ERROR_NONE
 
 def serialize_http_response(msgLst, prepopulatedHeaders, contentType, contentLength, lastModified, body):
-    '''
-	Serialize an HTTP response from Request to buffer
-
-    :param msgLst: The output message list
-    :type: list
-    :param prepopulatedHeaders: The prepopulated headers (input) 
-    :type: string
-	:param contentType: The content type (input)
-	:type: string
-	:param contentLength: The content length (input)
-	:type: string
-	:param lastModified: The last modified time (input)
-	:type: string
-	:param body: The HTTP body (input)
-	:type: string
-	'''
+    '''Serialize an HTTP response from Request to buffer'''
     currentDateAndTime = datetime.now()
     currentTime = currentDateAndTime.strftime("%a, %d %b %Y %H:%M:%S GMT")
     dateLen = len(currentTime)
