@@ -68,3 +68,19 @@ class Request(object):
     def __init__(self):
         pass
 
+class Response(object):
+    # HTTP version, should be 1.1 in this project
+    HttpVersion = ""
+    # Result code of the attempt
+    StatusCode = ""
+    # Meaning of the registered status codes
+    ReasonPhrase = ""
+    # HTTP response headers
+    headers = {}
+    # Http response body
+    HttpBody = ""
+    # Whether the response is valid
+    Valid = False
+    def __init__(self):
+        pass
+
