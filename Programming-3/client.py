@@ -5,6 +5,7 @@ import csv
 import argparse
 import ipaddress
 import select
+from time import sleep
 from util import TestErrorCode
 
 # Define constants for HTTP port and buffer size for socket communication
@@ -64,33 +65,58 @@ def sendReq(clientSock, dependencies, method, uri):
         print("req: "+request)
         
         # Reconnect if necessary and send the request
-        try:
-            clientSock.send(request.encode())
-        except BrokenPipeError:
-            # If the connection is broken, create a new socket and reconnect
-            clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            clientSock.connect((args.server_ip, HTTP_PORT))
-            clientSock.send(request.encode())
+    half_length = len(request) // 2
+    first_half = request[:half_length]
+    second_half = request[half_length:]
+    clientSock.send(first_half.encode())
+    sleep(0.5)
+    clientSock.send(second_half.encode())
         
-        recvData = b''
-        while True:
-            try:
-                # Receive data from the server
-                chunk = clientSock.recv(BUF_SIZE)
-                if not chunk:
-                    break  # Stop reading if no more data
-                recvData += chunk
-            except socket.error as e:
-                print(f"Socket error: {e}")
-                break
-        
-        # If data was received, split it into header and content, and save to files
-        if recvData:
-            header_data, content_data = split_header_content(recvData)
-            with open(dep + ".head", 'wb') as f:
-                f.write(header_data)
-            with open(dep, 'wb') as f:
-                f.write(content_data)
+    recvData = b''
+    total_received = 0
+    delimiter_found = False
+    while True:
+        chunk = clientSock.recv(BUF_SIZE)
+        # print(chunk)
+        if not chunk:
+            break
+        recvData += chunk
+        if not delimiter_found:
+            delimiter_index = recvData.find(b'\r\n\r\n')  # Find the position of the delimiter
+            if delimiter_index != -1:
+                total_received = len(recvData) - (delimiter_index + len(b'\r\n\r\n'))  # Update total received bytes counter
+                delimiter_found = True
+        else:
+            total_received += len(chunk)
+
+        # Check if the received data contains the Content-Length header
+        if b'Content-Length:' in recvData:
+            # Find the position of the Content-Length header
+            content_length_index = recvData.find(b'Content-Length:')
+            # Find the end of the line after the Content-Length header
+            end_of_line_index = recvData.find(b'\r\n', content_length_index)
+            if end_of_line_index >= 0:
+                # Extract the substring containing the value of Content-Length
+                content_length_str = recvData[content_length_index:end_of_line_index]
+                # Split the string to get the value after the colon
+                content_length_value = content_length_str.split(b':')[1].strip()
+                # Convert the value to an integer
+                content_length = int(content_length_value)
+
+                # Check if total received bytes is greater than or equal to content length
+                if total_received >= content_length:
+                    break  # Exit the loop once enough data has been received
+
+    # Split header and content
+    header_data, content_data = split_header_content(recvData)
+    
+    with open(dep + ".head", 'wb') as f:
+        f.write(header_data)
+    
+    with open(dep, 'wb') as f:
+        f.write(content_data)
+    
+    clientSock.close()
 
 # Function to split received data into HTTP header and content
 def split_header_content(data):
