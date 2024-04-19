@@ -13,8 +13,15 @@ class Window(object):
         self.sendBase = 0
         self.nextSeqNum = 0
         self.unAckedPackets = {}
+        self.ackCounts = {}  # Dictionary to track ACK counts
 
     def is_window_full(self):
+        return (self.nextSeqNum - self.sendBase) >= self.windowSize
+
+    def add_packet_to_window(self, seq_num, packet):
+        if not self.is_window_full():
+            self.unAckedPackets[seq_num] = (packet, time.time())
+            self.nextSeqNum += len(packet.payload)  # Assuming packet has a payload attribute
         return (self.nextSeqNum - self.sendBase) >= self.windowSize
 
     def slide_window(self, ack_num):
@@ -22,6 +29,14 @@ class Window(object):
             for seq in list(self.unAckedPackets):
                 if seq < ack_num:
                     packet, send_time = self.unAckedPackets.pop(seq)
+                    # Increment ACK count
+                    self.ackCounts[seq] = self.ackCounts.get(seq, 0) + 1
+                    # Check for triple duplicate ACKs
+                    if self.ackCounts[seq] == 3:
+                        # Retransmit packet
+                        print(f'Triple duplicate ACKs received for packet {seq}. Retransmitting...')
+                        # Assuming a send_packet function exists to retransmit the packet
+                        send_packet(packet)
                     sample_rtt = time.time() - send_time
                     if self.ERTT is None:  # Initialize ERTT and DEV
                         self.ERTT = sample_rtt
@@ -36,7 +51,7 @@ class Window(object):
                 if seq < ack_num:
                     del self.unAckedPackets[seq]
 
-    def add_packet_to_window(self, seq_num, packet):
+def add_packet_to_window(self, seq_num, packet):
         # if not self.is_window_full():
         #     self.unAckedPackets[seq_num] = packet
         #     self.nextSeqNum += len(packet.data)
