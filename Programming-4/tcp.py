@@ -3,6 +3,7 @@ import grading
 from enum import Enum
 import socket
 import ipaddress
+from scapy.all import Raw
 
 
 class Window(object):
@@ -24,9 +25,13 @@ class Window(object):
                     del self.unAckedPackets[seq]
 
     def add_packet_to_window(self, seq_num, packet):
+        # if not self.is_window_full():
+        #     self.unAckedPackets[seq_num] = packet
+        #     self.nextSeqNum += len(packet.data)
+        payload_length = len(packet[Raw].load) if Raw in packet else 0
         if not self.is_window_full():
             self.unAckedPackets[seq_num] = packet
-            self.nextSeqNum += len(packet.data)
+            self.nextSeqNum += payload_length
 
 class SocketType(Enum):
     TCP_INITIATOR = 0

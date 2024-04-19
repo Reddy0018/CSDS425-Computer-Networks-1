@@ -3,6 +3,7 @@ from backend import begin_backend, single_send
 import socket
 from packet import create_packet
 from threading import Thread, Lock, Condition
+from scapy.all import Raw
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
@@ -103,8 +104,6 @@ def case_write(sock, buf, length):
         while length > 0 and not sock.window.is_window_full():
             packet_size = min(length, sock.window.windowSize - (sock.window.nextSeqNum - sock.window.sendBase))
             packet_data = buf[:packet_size]
-            #print("CaseRCPLen"+ str(len(CaseTCP())))
-            print("Plen"+ str(len(packet_data)))
             packet = create_packet(
                 src=sock.myPort,  # Source port
                 dst=socket.ntohs(sock.conn.sinPort),  # Destination port
@@ -130,6 +129,12 @@ def case_write(sock, buf, length):
             buf = buf[packet_size:]
     return EXIT_SUCCESS
 
+def add_packet_to_window(self, seq_num, packet):
+    # Check for Raw layer and get payload length
+    payload_length = len(packet[Raw].load) if Raw in packet else 0
+    if not self.is_window_full():
+        self.unAckedPackets[seq_num] = packet
+        self.nextSeqNum += payload_length
 
 def handle_ack(sock, ack_num):
     sock.window.slide_window(ack_num)
