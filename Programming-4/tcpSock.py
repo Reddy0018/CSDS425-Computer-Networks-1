@@ -4,6 +4,7 @@ import socket
 from packet import create_packet
 from threading import Thread, Lock, Condition
 from scapy.all import Raw
+import time
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
@@ -104,6 +105,7 @@ def case_write(sock, buf, length):
         while length > 0 and not sock.window.is_window_full():
             packet_size = min(length, sock.window.windowSize - (sock.window.nextSeqNum - sock.window.sendBase))
             packet_data = buf[:packet_size]
+            send_time = time.time()
             packet = create_packet(
                 src=sock.myPort,  # Source port
                 dst=socket.ntohs(sock.conn.sinPort),  # Destination port
@@ -112,11 +114,17 @@ def case_write(sock, buf, length):
                 hLen=20,  # Header length
                 pLen=20 + len(packet_data),  # Total packet length
                 flags=0,  # TCP flags
+                advWin=sock.window.windowSize,  # Advertised window size
+                extData=None , # No extension data
+                payload=packet_data,  # Payload
+                payloadLen=len(packet_data)  # Payload length
+            )
+            sock.window.unAckedPackets[sock.window.nextSeqNum] = (packet, send_time)  # Store packet and send time
+            if packet is None:
                 advWin=sock.window.windowSize,  # Advertised window
                 extData=None,  # Extension data if any
                 payload=packet_data,  # Payload
                 payloadLen=len(packet_data)  # Payload length
-            )
             if packet is None:
                 print("Failed to create packet.")
                 return EXIT_FAILURE  # Define EXIT_FAILURE if not already defined

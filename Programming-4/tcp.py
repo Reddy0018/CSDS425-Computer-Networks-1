@@ -1,5 +1,6 @@
 import packet
 import grading
+import time
 from enum import Enum
 import socket
 import ipaddress
@@ -18,6 +19,17 @@ class Window(object):
 
     def slide_window(self, ack_num):
         if ack_num > self.sendBase:
+            for seq in list(self.unAckedPackets):
+                if seq < ack_num:
+                    packet, send_time = self.unAckedPackets.pop(seq)
+                    sample_rtt = time.time() - send_time
+                    if self.ERTT is None:  # Initialize ERTT and DEV
+                        self.ERTT = sample_rtt
+                        self.DEV = sample_rtt / 2
+                    else:
+                        self.ERTT = 0.875 * self.ERTT + 0.125 * sample_rtt
+                        self.DEV = 0.75 * self.DEV + 0.25 * abs(sample_rtt - self.ERTT)
+                    self.RTO = self.ERTT + 4 * self.DEV
             self.sendBase = ack_num
             # Remove acknowledged packets from unAckedPackets
             for seq in list(self.unAckedPackets):
