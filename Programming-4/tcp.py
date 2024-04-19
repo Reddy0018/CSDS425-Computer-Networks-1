@@ -6,10 +6,27 @@ import ipaddress
 
 
 class Window(object):
-    nextSeqExpected = 0
-    lastAckReceived = 0
-    def __init__(self):
-        pass
+    def __init__(self, window_size=1024):
+        self.windowSize = window_size
+        self.sendBase = 0
+        self.nextSeqNum = 0
+        self.unAckedPackets = {}
+
+    def is_window_full(self):
+        return (self.nextSeqNum - self.sendBase) >= self.windowSize
+
+    def slide_window(self, ack_num):
+        if ack_num > self.sendBase:
+            self.sendBase = ack_num
+            # Remove acknowledged packets from unAckedPackets
+            for seq in list(self.unAckedPackets):
+                if seq < ack_num:
+                    del self.unAckedPackets[seq]
+
+    def add_packet_to_window(self, seq_num, packet):
+        if not self.is_window_full():
+            self.unAckedPackets[seq_num] = packet
+            self.nextSeqNum += len(packet.data)
 
 class SocketType(Enum):
     TCP_INITIATOR = 0

@@ -26,8 +26,8 @@ FIN_FLAG_MASK = 0x2
 IDENTIFIER = 3425
 
 def create_packet(src, dst, seq, ack, hLen, pLen, flags, advWin, extData, payload, payloadLen):
-    if hLen < len(CaseTCP()):
-        return None
+    #if hLen < len(CaseTCP()):
+        #return None
     if pLen < hLen:
         return None
 

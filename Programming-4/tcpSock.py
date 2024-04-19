@@ -1,6 +1,7 @@
 from tcp import Socket, Window, SocketType, SockaddrIn, ReadMode
-from backend import begin_backend
+from backend import begin_backend, single_send
 import socket
+from packet import create_packet
 from threading import Thread, Lock, Condition
 
 EXIT_SUCCESS = 0
@@ -99,8 +100,36 @@ def case_read(sock, buf, length, flags):
 
 def case_write(sock, buf, length):
     with sock.sendLock:
-        if sock.sendingBuf is None:
-            sock.sendingBuf = b""
-        sock.sendingBuf += buf[:length].encode()
-        sock.sendingLen += length
+        while length > 0 and not sock.window.is_window_full():
+            packet_size = min(length, sock.window.windowSize - (sock.window.nextSeqNum - sock.window.sendBase))
+            packet_data = buf[:packet_size]
+            #print("CaseRCPLen"+ str(len(CaseTCP())))
+            print("Plen"+ str(len(packet_data)))
+            packet = create_packet(
+                src=sock.myPort,  # Source port
+                dst=socket.ntohs(sock.conn.sinPort),  # Destination port
+                seq=sock.window.nextSeqNum,  # Sequence number
+                ack=sock.window.lastAckReceived,  # Ack number
+                hLen=20,  # Header length
+                pLen=20 + len(packet_data),  # Total packet length
+                flags=0,  # TCP flags
+                advWin=sock.window.windowSize,  # Advertised window
+                extData=None,  # Extension data if any
+                payload=packet_data,  # Payload
+                payloadLen=len(packet_data)  # Payload length
+            )
+            if packet is None:
+                print("Failed to create packet.")
+                return EXIT_FAILURE  # Define EXIT_FAILURE if not already defined
+
+            print("Packet created successfully:", packet)  # Optional: Remove after debugging
+
+            sock.window.add_packet_to_window(sock.window.nextSeqNum, packet)
+            single_send(sock, packet,sock.sendingLen)
+            length -= packet_size
+            buf = buf[packet_size:]
     return EXIT_SUCCESS
+
+
+def handle_ack(sock, ack_num):
+    sock.window.slide_window(ack_num)
