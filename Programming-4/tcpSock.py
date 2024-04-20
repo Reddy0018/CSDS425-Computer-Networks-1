@@ -119,6 +119,8 @@ def case_write(sock, buf, length):
                 payload=packet_data,  # Payload
                 payloadLen=len(packet_data)  # Payload length
             )
+            sock.receivedLen=20 + len(packet_data)
+            sock.receivedBuf=packet_data
             sock.window.unAckedPackets[sock.window.nextSeqNum] = (packet, send_time)  # Store packet and send time
             if packet is None:
                 advWin=sock.window.windowSize,  # Advertised window
