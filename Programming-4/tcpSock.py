@@ -122,17 +122,14 @@ def case_write(sock, buf, length):
             sock.receivedLen=20 + len(packet_data)
             sock.receivedBuf+=bytes(packet_data,encoding='utf8')
 
-            sock.window.unAckedPackets[sock.window.nextSeqNum] = (packet, send_time)  # Store packet and send time
+            sock.window.unAckedPackets[sock.window.nextSeqNum] = (packet, send_time) 
             if packet is None:
-                advWin=sock.window.windowSize,  # Advertised window
-                extData=None,  # Extension data if any
-                payload=packet_data,  # Payload
+                advWin=sock.window.windowSize,  
+                extData=None,  
+                payload=packet_data,  
                 payloadLen=len(packet_data)  # Payload length
             if packet is None:
-                print("Failed to create packet.")
-                return EXIT_FAILURE  # Define EXIT_FAILURE if not already defined
-
-            print("Packet created successfully:", packet)  # Optional: Remove after debugging
+                return EXIT_FAILURE  
 
             sock.window.add_packet_to_window(sock.window.nextSeqNum, packet)
             single_send(sock, packet,sock.sendingLen)

@@ -33,9 +33,6 @@ class Window(object):
                     self.ackCounts[seq] = self.ackCounts.get(seq, 0) + 1
                     # Check for triple duplicate ACKs
                     if self.ackCounts[seq] == 3:
-                        # Retransmit packet
-                        print(f'Triple duplicate ACKs received for packet {seq}. Retransmitting...')
-                        # Assuming a send_packet function exists to retransmit the packet
                         send_packet(packet)
                     sample_rtt = time.time() - send_time
                     if self.ERTT is None:  # Initialize ERTT and DEV
